@@ -95,6 +95,7 @@ function OrderRow({
                   <th className="text-left pb-2 font-medium">Size</th>
                   <th className="text-left pb-2 font-medium">Color</th>
                   <th className="text-left pb-2 font-medium">Qty</th>
+                  <th className="text-left pb-2 font-medium">Design</th>
                   <th className="text-left pb-2 font-medium">Source</th>
                   <th className="text-right pb-2 font-medium">Cost</th>
                   <th className="text-right pb-2 font-medium">Price</th>
@@ -113,6 +114,21 @@ function OrderRow({
                     <td className="py-2 text-gray-600">{item.size}</td>
                     <td className="py-2 text-gray-600">{item.color}</td>
                     <td className="py-2 text-gray-600">{item.quantity}</td>
+                    <td className="py-2">
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt="Design"
+                          className="w-16 h-16 object-contain rounded border border-gray-200 bg-gray-50"
+                        />
+                      ) : item.design ? (
+                        <span className="text-gray-600 text-xs max-w-[150px] truncate block" title={item.design}>
+                          {item.design}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">&mdash;</span>
+                      )}
+                    </td>
                     <td className="py-2">
                       <span
                         className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${

@@ -14,6 +14,7 @@ const emptyItem: OrderItemFormData = {
   supplier_cost: "",
   selling_price: "",
   source: "custom",
+  image_file: null,
 };
 
 export default function AddOrderPage() {
@@ -24,7 +25,7 @@ export default function AddOrderPage() {
   const [customer, setCustomer] = useState({ name: "", phone: "" });
   const [items, setItems] = useState<OrderItemFormData[]>([{ ...emptyItem }]);
 
-  function updateItem(index: number, field: keyof OrderItemFormData, value: string | number) {
+  function updateItem(index: number, field: keyof OrderItemFormData, value: string | number | File | null) {
     setItems((prev) =>
       prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
@@ -82,18 +83,40 @@ export default function AddOrderPage() {
       return;
     }
 
-    const orderItems = items.map((item) => ({
-      order_id: orderData.id,
-      model: item.model,
-      size: item.size,
-      color: item.color,
-      design: item.design,
-      quantity: item.quantity,
-      supplier_cost: parseFloat(item.supplier_cost) || 0,
-      selling_price: parseFloat(item.selling_price) || 0,
-      profit: calcItemProfit(item),
-      source: item.source,
-    }));
+    const orderItems = await Promise.all(
+      items.map(async (item, index) => {
+        let image_url: string | null = null;
+
+        if (item.image_file) {
+          const ext = item.image_file.name.split(".").pop() || "jpg";
+          const path = `orders/${orderData.id}/${index}_${Date.now()}.${ext}`;
+          const { error: uploadError } = await supabase.storage
+            .from("images")
+            .upload(path, item.image_file);
+
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage
+              .from("images")
+              .getPublicUrl(path);
+            image_url = urlData.publicUrl;
+          }
+        }
+
+        return {
+          order_id: orderData.id,
+          model: item.model,
+          size: item.size,
+          color: item.color,
+          design: item.design,
+          quantity: item.quantity,
+          supplier_cost: parseFloat(item.supplier_cost) || 0,
+          selling_price: parseFloat(item.selling_price) || 0,
+          profit: calcItemProfit(item),
+          source: item.source,
+          image_url,
+        };
+      })
+    );
 
     const { error: itemsError } = await supabase
       .from("order_items")
@@ -234,15 +257,54 @@ export default function AddOrderPage() {
             </div>
 
             <div className="mt-4">
-              <Field label="Design Description">
-                <textarea
-                  value={item.design}
-                  onChange={(e) => updateItem(index, "design", e.target.value)}
-                  rows={2}
-                  className="input-field resize-none"
-                  placeholder="Describe the design..."
-                />
-              </Field>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Design (upload a photo or describe)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-shrink-0">
+                  {item.image_file ? (
+                    <div className="relative">
+                      <img
+                        src={URL.createObjectURL(item.image_file)}
+                        alt="Design preview"
+                        className="w-32 h-32 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => updateItem(index, "image_file", null)}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors bg-gray-50">
+                      <svg className="w-8 h-8 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-xs text-gray-500">Upload</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          updateItem(index, "image_file", file);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <textarea
+                    value={item.design}
+                    onChange={(e) => updateItem(index, "design", e.target.value)}
+                    rows={4}
+                    className="input-field resize-none h-32"
+                    placeholder="Or describe the design..."
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">

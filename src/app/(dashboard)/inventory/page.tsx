@@ -23,7 +23,7 @@ export default function InventoryPage() {
       supabase.from("products").select("*").order("name"),
       supabase
         .from("inventory")
-        .select("*, products(name, base_price)")
+        .select("*, products(name, base_price, image_url)")
         .order("created_at", { ascending: false }),
     ]);
     setProducts((p as Product[]) || []);
@@ -102,6 +102,9 @@ export default function InventoryPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left p-4 font-medium text-gray-500">
+                  Image
+                </th>
+                <th className="text-left p-4 font-medium text-gray-500">
                   Product
                 </th>
                 <th className="text-left p-4 font-medium text-gray-500">
@@ -173,6 +176,21 @@ function StockRow({
 
   return (
     <tr className="border-b border-gray-50 hover:bg-gray-50">
+      <td className="p-4">
+        {item.products?.image_url ? (
+          <img
+            src={item.products.image_url}
+            alt={item.products?.name || "Product"}
+            className="w-10 h-10 object-contain rounded border border-gray-200 bg-gray-50"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded border border-gray-200 bg-gray-50 flex items-center justify-center">
+            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+      </td>
       <td className="p-4 font-medium text-gray-900">
         {item.products?.name || "Unknown"}
       </td>
@@ -220,6 +238,7 @@ function AddProductForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [basePrice, setBasePrice] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const supabase = createClient();
@@ -229,17 +248,40 @@ function AddProductForm({
     setSaving(true);
     setError("");
 
-    const { error: err } = await supabase.from("products").insert({
-      name,
-      description: description || null,
-      base_price: parseFloat(basePrice) || 0,
-    });
+    const { data: productData, error: err } = await supabase
+      .from("products")
+      .insert({
+        name,
+        description: description || null,
+        base_price: parseFloat(basePrice) || 0,
+      })
+      .select("id")
+      .single();
 
-    if (err) {
-      setError(err.message);
+    if (err || !productData) {
+      setError(err?.message || "Failed to create product");
       setSaving(false);
       return;
     }
+
+    if (imageFile) {
+      const ext = imageFile.name.split(".").pop() || "jpg";
+      const path = `products/${productData.id}_${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("images")
+        .upload(path, imageFile);
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from("images")
+          .getPublicUrl(path);
+        await supabase
+          .from("products")
+          .update({ image_url: urlData.publicUrl })
+          .eq("id", productData.id);
+      }
+    }
+
     onDone();
   }
 
@@ -289,6 +331,42 @@ function AddProductForm({
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               placeholder="0.00"
             />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Product Image
+          </label>
+          <div className="flex items-center gap-4">
+            {imageFile ? (
+              <div className="relative">
+                <img
+                  src={URL.createObjectURL(imageFile)}
+                  alt="Product preview"
+                  className="w-24 h-24 object-contain rounded-lg border border-gray-200 bg-gray-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImageFile(null)}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
+                >
+                  &times;
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors bg-gray-50">
+                <svg className="w-6 h-6 text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-xs text-gray-500">Upload</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            )}
           </div>
         </div>
         {error && (

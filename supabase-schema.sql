@@ -172,3 +172,15 @@ begin
   return true;
 end;
 $$;
+
+-- =============================================
+-- STEP 8: Add image support
+-- =============================================
+
+alter table order_items add column if not exists image_url text;
+alter table products add column if not exists image_url text;
+
+-- NOTE: You must also create a Storage bucket in Supabase Dashboard:
+-- 1. Go to Storage > New Bucket
+-- 2. Name: "images", set to Public
+-- 3. Add policy: allow authenticated users to SELECT, INSERT, UPDATE, DELETE

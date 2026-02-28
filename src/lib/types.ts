@@ -26,6 +26,7 @@ export type OrderItem = {
   selling_price: number;
   profit: number;
   source: "stock" | "custom";
+  image_url: string | null;
   created_at: string;
 };
 
@@ -34,6 +35,7 @@ export type Product = {
   name: string;
   description: string | null;
   base_price: number;
+  image_url: string | null;
   created_at: string;
 };
 
@@ -47,7 +49,7 @@ export type InventoryItem = {
 };
 
 export type InventoryWithProduct = InventoryItem & {
-  products: Pick<Product, "name" | "base_price">;
+  products: Pick<Product, "name" | "base_price" | "image_url">;
 };
 
 export type OrderItemFormData = {
@@ -59,6 +61,7 @@ export type OrderItemFormData = {
   supplier_cost: string;
   selling_price: string;
   source: "stock" | "custom";
+  image_file: File | null;
 };
 
 export const STATUS_OPTIONS = [
