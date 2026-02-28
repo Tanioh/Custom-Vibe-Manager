@@ -13,6 +13,10 @@ export default function InventoryPage() {
   const [showAddStock, setShowAddStock] = useState(false);
   const supabase = createClient();
 
+  // Filters
+  const [searchQuery, setSearchQuery] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
+
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -34,6 +38,26 @@ export default function InventoryPage() {
   const lowStockCount = inventory.filter(
     (i) => i.quantity_available <= LOW_STOCK_THRESHOLD
   ).length;
+
+  // Derive filtered inventory
+  const filteredInventory = inventory.filter((item) => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!(item.products?.name || "").toLowerCase().includes(q)) return false;
+    }
+    if (stockFilter === "out") return item.quantity_available === 0;
+    if (stockFilter === "low")
+      return item.quantity_available > 0 && item.quantity_available <= LOW_STOCK_THRESHOLD;
+    if (stockFilter === "in") return item.quantity_available > LOW_STOCK_THRESHOLD;
+    return true;
+  });
+
+  const hasFilters = searchQuery || stockFilter;
+
+  function clearFilters() {
+    setSearchQuery("");
+    setStockFilter("");
+  }
 
   if (loading) {
     return (
@@ -91,10 +115,58 @@ export default function InventoryPage() {
         />
       )}
 
+      {/* Filter Bar */}
+      {inventory.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[180px]">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Search</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Product name..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              />
+            </div>
+            <div className="min-w-[150px]">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Stock Status</label>
+              <select
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              >
+                <option value="">All</option>
+                <option value="in">In Stock</option>
+                <option value="low">Low Stock</option>
+                <option value="out">Out of Stock</option>
+              </select>
+            </div>
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {hasFilters && (
+            <p className="text-xs text-gray-500 mt-2">
+              Showing {filteredInventory.length} of {inventory.length} entries
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Stock Table */}
       {inventory.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-sm">
           <p className="text-gray-500">No stock entries yet.</p>
+        </div>
+      ) : filteredInventory.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center shadow-sm">
+          <p className="text-gray-500">No stock entries match your filters.</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
@@ -125,7 +197,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {inventory.map((item) => (
+              {filteredInventory.map((item) => (
                 <StockRow
                   key={item.id}
                   item={item}
@@ -158,6 +230,12 @@ function StockRow({
       .update({ quantity_available: parseInt(qty) || 0 })
       .eq("id", item.id);
     setSaving(false);
+    onUpdate();
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Delete this stock entry?")) return;
+    await supabase.from("inventory").delete().eq("id", item.id);
     onUpdate();
   }
 
@@ -221,6 +299,15 @@ function StockRow({
             className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
           >
             {saving ? "..." : "Update"}
+          </button>
+          <button
+            onClick={handleDelete}
+            className="text-sm font-medium text-red-600 hover:text-red-800 bg-red-50 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition-colors"
+            title="Delete stock entry"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
         </div>
       </td>
