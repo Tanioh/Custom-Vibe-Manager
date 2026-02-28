@@ -1,24 +1,36 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Order } from "@/lib/types";
+import type { Order, OrderItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
   const supabase = await createClient();
+
   const { data: orders } = await supabase
     .from("orders")
     .select("*")
     .returns<Order[]>();
 
+  const { data: items } = await supabase
+    .from("order_items")
+    .select("size, quantity, profit, order_id")
+    .returns<Pick<OrderItem, "size" | "quantity" | "profit" | "order_id">[]>();
+
   const allOrders = orders || [];
+  const allItems = items || [];
   const activeOrders = allOrders.filter((o) => o.status !== "Cancelled");
-  const totalProfit = activeOrders.reduce((sum, o) => sum + (o.profit || 0), 0);
+  const cancelledIds = new Set(
+    allOrders.filter((o) => o.status === "Cancelled").map((o) => o.id)
+  );
+  const activeItems = allItems.filter((i) => !cancelledIds.has(i.order_id));
+
+  const totalProfit = activeOrders.reduce((sum, o) => sum + (o.total_profit || 0), 0);
   const totalOrders = allOrders.length;
 
-  // Most sold size
+  // Most sold size (by quantity from order_items)
   const sizeCounts: Record<string, number> = {};
-  activeOrders.forEach((o) => {
-    sizeCounts[o.size] = (sizeCounts[o.size] || 0) + 1;
+  activeItems.forEach((item) => {
+    sizeCounts[item.size] = (sizeCounts[item.size] || 0) + (item.quantity || 1);
   });
   const mostSoldSize =
     Object.entries(sizeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
@@ -32,7 +44,7 @@ export default async function AnalyticsPage() {
       monthlySummary[key] = { orders: 0, profit: 0 };
     }
     monthlySummary[key].orders += 1;
-    monthlySummary[key].profit += o.profit || 0;
+    monthlySummary[key].profit += o.total_profit || 0;
   });
 
   const sortedMonths = Object.entries(monthlySummary).sort(

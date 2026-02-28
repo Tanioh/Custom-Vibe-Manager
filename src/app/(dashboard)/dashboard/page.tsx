@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const ready = allOrders.filter((o) => o.status === "Ready").length;
   const totalProfit = allOrders
     .filter((o) => o.status !== "Cancelled")
-    .reduce((sum, o) => sum + (o.profit || 0), 0);
+    .reduce((sum, o) => sum + (o.total_profit || 0), 0);
 
   const cards = [
     { label: "Total Orders", value: totalOrders, color: "bg-blue-50 text-blue-700" },
